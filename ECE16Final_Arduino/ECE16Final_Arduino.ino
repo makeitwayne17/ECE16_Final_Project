@@ -90,7 +90,8 @@ void sendData() {
   BTserial.print(' ');
   BTserial.print(gz);
   BTserial.print(' ');
-  BTserial.println(analogRead(A0));
+  BTserial.println(analogRead(A2));
+  //Serial.println(analogRead(A2));
 }
 
 /* 

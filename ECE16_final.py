@@ -57,7 +57,7 @@ def grab_samples( n_samples ):
 
 # ==================== Grab new samples and plot ====================
 def update_plots(i):
-    global times, raw, processed, ic, icHr, sCount, prevTime, stepTime, sPrev
+    global times, raw, processed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev
 
     # shift samples left by 'NS'
     times[:N-NS] = times[NS:]
@@ -69,7 +69,14 @@ def update_plots(i):
     #times[N-NS:], values[N-NS:], values2[N-NS:]= grab_samples(NS)
     times[N-NS:], raw[N-NS:], hr[:N-NS]= grab_samples(NS)
     ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
+
+    #get Heart Rate
     icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHR)
+    beats = np.array([times, hrProcessed])
+    HR, loc = hr.calculate_hr(beats)
+
+
+    #stuff for welch filter !!IGNORE!!
     """
     freq, power = scipy.signal.welch(processed, 25)
 
@@ -83,10 +90,9 @@ def update_plots(i):
     """
 
 
-
-    #get HR
+    #get steps
     steps = np.array([times, processed])
-    HR, loc = hr.calculate_hr(steps)
+    HR_useless, loc = hr.calculate_hr(steps)
     step = np.zeros(400)
 
     for i in range(N - 1):
@@ -103,29 +109,34 @@ def update_plots(i):
             if (stepTime - prevTime) > step_pause_interval:
                 sCount = sCount + 1
                 print("Step: " + str(sCount))
-                ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
                 prevTime = stepTime
 
+    currTime = time.time()
+    if((currTime - prevTime) > step_pause_interval):
+        ser.write(("HR: " + format(HR, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
+        prevTime = currTime
 
 
 
-    # if 1 in step[N-(NS+1):]:
-    #     stepTime = time.time()        
-    #     if (stepTime - prevTime) > .5:
-    #         sCount = sCount + 1
-    #         print("Step: " + str(sCount))
-    #         ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
-    #         prevTime = stepTime
-
-    
-    # plot
-    #axes[0].set_xlim(times[0],times[N-1])
-    #axes[1].set_xlim(times[0],times[N-1])
+    #stuff for welch filter !!IGNORE!!
+    """
+    if 1 in step[N-(NS+1):]:
+        stepTime = time.time()        
+        if (stepTime - prevTime) > .5:
+            sCount = sCount + 1
+            print("Step: " + str(sCount))
+            ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
+            prevTime = stepTime
+    plot
+    axes[0].set_xlim(times[0],times[N-1])
+    axes[1].set_xlim(times[0],times[N-1])
+    """
     
     [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-    live_plots[0].set_data(times, raw)
+    live_plots[0].set_data(times, hrProcessed)
     live_plots[1].set_data(times, processed)
     axes[1].set_ylim(-4000,4000)
+    axes[0].set_ylim(min(hrProcessed)-abs(min(hrProcessed)*.5), max(hrProcessed)*1.5)
 
     #live_plots[1].set_data(freq, power)
     #axes[1].set_xlim(freq[0], freq[-1])
@@ -144,7 +155,7 @@ def read_BLE( ser ):
 
 # ==================== Main ====================
 if (__name__ == "__main__") :
-
+    #for step count
     b_high, a_high = scipy.signal.butter(3, .005, 'highpass', analog=False)
     b_low, a_low = scipy.signal.butter(3, .1, 'lowpass', analog=False)
     arr[0] = a_high
@@ -186,21 +197,24 @@ if (__name__ == "__main__") :
         # initialize the figure 
         fig, axes = plt.subplots(1,2)
 
-        times, raw = grab_samples(N)
+        #times, raw = grab_samples(N)
+        times[N-NS:], raw[N-NS:], hr[:N-NS]= grab_samples(NS)
         sleep(0.5);
 
         #filter
         ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
+        icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHR)
 
         #live_plot = axes.plot(times, values, lw=2)[0]
         live_plots = []
-        live_plots.append(axes[0].plot(times, raw, lw=2)[0])
+        live_plots.append(axes[0].plot(times, hrProcessed, lw=2)[0])
         live_plots.append(axes[1].plot(times, processed, lw=2)[0])
         
         # initialize the y-axis limits and labels
         #axes.set_ylim(0,1023)
         [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-        axes[0].set_ylim(0,10000)
+        #axes[0].set_ylim(0,10000)
+        axes[0].set_ylim(min(hrProcessed)-(min(hrProcessed)*.25), max(hrProcessed)*1.5)
         axes[1].set_ylim(min(processed)-(min(processed)*.25), max(processed)*1.5)
 
         axes[0].set_xlabel('Time (s)')
@@ -208,7 +222,7 @@ if (__name__ == "__main__") :
         axes[1].set_xlabel('Time (s)')
         axes[1].set_ylabel('Value')
 
-        axes[0].set_title('Raw')
+        axes[0].set_title('Heart Rate')
         axes[1].set_title('Processed')
         
 
