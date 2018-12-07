@@ -9,6 +9,7 @@ import filtering as flt
 import scipy
 import math 
 import hr_ecg as hr
+import hr_ecg
 
 
 
@@ -17,7 +18,7 @@ N = 400                                         # samples to plot
 NS = 20                                         # samples to grab each iteration
 step_pause_interval = .25
 sample_count = 0                                # current sample count
-times, raw, processed, hr= np.zeros((4, N))                         # data vectors
+times, raw, processed, hr, hrProcessed= np.zeros((5, N))                         # data vectors
 serial_port = '/dev/cu.usbserial'
 #serial_port = '/dev/cu.usbmodem14201'  # the serial port to use
 serial_baud = 9600    
@@ -57,7 +58,7 @@ def grab_samples( n_samples ):
 
 # ==================== Grab new samples and plot ====================
 def update_plots(i):
-    global times, raw, processed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev
+    global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev
 
     # shift samples left by 'NS'
     times[:N-NS] = times[NS:]
@@ -67,13 +68,14 @@ def update_plots(i):
 
     # grab new samples
     #times[N-NS:], values[N-NS:], values2[N-NS:]= grab_samples(NS)
-    times[N-NS:], raw[N-NS:], hr[:N-NS]= grab_samples(NS)
+    times[N-NS:], raw[N-NS:], hr[N-NS:]= grab_samples(NS)
     ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
 
     #get Heart Rate
-    icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHR)
+    icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHr)
     beats = np.array([times, hrProcessed])
-    HR, loc = hr.calculate_hr(beats)
+    Hr = 5
+    #Hr, loc1 = hr_ecg.calculate_hr(beats)
 
 
     #stuff for welch filter !!IGNORE!!
@@ -92,7 +94,7 @@ def update_plots(i):
 
     #get steps
     steps = np.array([times, processed])
-    HR_useless, loc = hr.calculate_hr(steps)
+    HR_useless, loc = hr_ecg.calculate_hr(steps)
     step = np.zeros(400)
 
     for i in range(N - 1):
@@ -105,6 +107,9 @@ def update_plots(i):
     for i in range(N-1):
         if (step[i] == 1):
             stepTime = times[i]     #get the time of current step
+
+            sCount = sCount + 1
+            print("Step: " + str(sCount))
             #print(times[i])
             if (stepTime - prevTime) > step_pause_interval:
                 sCount = sCount + 1
@@ -113,7 +118,7 @@ def update_plots(i):
 
     currTime = time.time()
     if((currTime - prevTime) > step_pause_interval):
-        ser.write(("HR: " + format(HR, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
+        ser.write(("HR: " + format(Hr, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
         prevTime = currTime
 
 
@@ -133,15 +138,64 @@ def update_plots(i):
     """
     
     [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-    live_plots[0].set_data(times, hrProcessed)
+    live_plots[0].set_data(times, hr)
     live_plots[1].set_data(times, processed)
     axes[1].set_ylim(-4000,4000)
-    axes[0].set_ylim(min(hrProcessed)-abs(min(hrProcessed)*.5), max(hrProcessed)*1.5)
+    axes[0].set_ylim(-500,5000)
 
     #live_plots[1].set_data(freq, power)
     #axes[1].set_xlim(freq[0], freq[-1])
     #axes[1].set_ylim(min(power), max(power))
     return live_plots
+
+def process_without_plots(): 
+
+    # shift samples left by 'NS'
+    times[:N-NS] = times[NS:]
+    raw[:N-NS] = raw[NS:]
+    processed[:N-NS] = processed[NS:]
+    hr[:N-NS] = hr[NS:]
+
+    # grab new samples
+    #times[N-NS:], values[N-NS:], values2[N-NS:]= grab_samples(NS)
+    times[N-NS:], raw[N-NS:], hr[N-NS:]= grab_samples(NS)
+    ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
+
+    #get Heart Rate
+    icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHr)
+    beats = np.array([times, hrProcessed])
+    Hr = 5
+    Hr, loc1 = hr_ecg.calculate_hr(beats)
+
+    #get steps
+    steps = np.array([times, processed])
+    HR_useless, loc = hr_ecg.calculate_hr(steps)
+    step = np.zeros(400)
+
+    for i in range(N - 1):
+        x = loc[i+1] - loc[i]
+        if(x > (0.75 * max(processed))):
+            step[i] = 1
+        else:
+            step[i] = 0
+
+    for i in range(N-1):
+        if (step[i] == 1):
+            stepTime = times[i]     #get the time of current step
+
+            sCount = sCount + 1
+            print("Step: " + str(sCount))
+            #print(times[i])
+            if (stepTime - prevTime) > step_pause_interval:
+                sCount = sCount + 1
+                print("Step: " + str(sCount))
+                prevTime = stepTime
+
+    currTime = time.time()
+    if((currTime - prevTime) > step_pause_interval):
+        ser.write(("HR: " + format(Hr, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
+        prevTime = currTime
+
 
 # get the sum of raw
 def sum_raw(a,b,c):
@@ -194,41 +248,45 @@ if (__name__ == "__main__") :
         sleep(3)
         ser.write(b"1")
         #ser.write(b"\n")
-        # initialize the figure 
-        fig, axes = plt.subplots(1,2)
+       
+        # # initialize the figure 
+        # fig, axes = plt.subplots(1,2)
 
         #times, raw = grab_samples(N)
-        times[N-NS:], raw[N-NS:], hr[:N-NS]= grab_samples(NS)
+        times[N-NS:], raw[N-NS:], hr[N-NS:]= grab_samples(NS)
         sleep(0.5);
 
         #filter
         ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
-        icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHR)
+        icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHr)
 
-        #live_plot = axes.plot(times, values, lw=2)[0]
-        live_plots = []
-        live_plots.append(axes[0].plot(times, hrProcessed, lw=2)[0])
-        live_plots.append(axes[1].plot(times, processed, lw=2)[0])
+        while(True):
+            process_without_plots()
+
+        # #live_plot = axes.plot(times, values, lw=2)[0]
+        # live_plots = []
+        # live_plots.append(axes[0].plot(times, hrProcessed, lw=2)[0])
+        # live_plots.append(axes[1].plot(times, processed, lw=2)[0])
         
-        # initialize the y-axis limits and labels
-        #axes.set_ylim(0,1023)
-        [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-        #axes[0].set_ylim(0,10000)
-        axes[0].set_ylim(min(hrProcessed)-(min(hrProcessed)*.25), max(hrProcessed)*1.5)
-        axes[1].set_ylim(min(processed)-(min(processed)*.25), max(processed)*1.5)
+        # # initialize the y-axis limits and labels
+        # #axes.set_ylim(0,1023)
+        # [ax.set_xlim(times[0],times[N-1]) for ax in axes]
+        # #axes[0].set_ylim(0,10000)
+        # axes[0].set_ylim(min(hrProcessed)-(min(hrProcessed)*.25), max(hrProcessed)*1.5)
+        # axes[1].set_ylim(min(processed)-(min(processed)*.25), max(processed)*1.5)
 
-        axes[0].set_xlabel('Time (s)')
-        axes[0].set_ylabel('Value')
-        axes[1].set_xlabel('Time (s)')
-        axes[1].set_ylabel('Value')
+        # axes[0].set_xlabel('Time (s)')
+        # axes[0].set_ylabel('Value')
+        # axes[1].set_xlabel('Time (s)')
+        # axes[1].set_ylabel('Value')
 
-        axes[0].set_title('Heart Rate')
-        axes[1].set_title('Processed')
+        # axes[0].set_title('Heart Rate')
+        # axes[1].set_title('Processed')
         
 
-        # set and start the animation and update at 1ms interval (if possible)
-        anim = animation.FuncAnimation(fig, update_plots, interval=1)
-        plt.show()
+        # # set and start the animation and update at 1ms interval (if possible)
+        # anim = animation.FuncAnimation(fig, update_plots, interval=1)
+        # plt.show()
 
 """
         finally:

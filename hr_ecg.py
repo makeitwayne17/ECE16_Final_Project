@@ -22,7 +22,7 @@ def calculate_hr(ecg_signal):
     # Calculate signal statistics and choose an adaptive threshold
     meanval = np.mean(ecg_signal[1,:])
     stdval = np.std(ecg_signal[1,:])
-    thresh = meanval + 1.0*stdval
+    thresh = meanval + 1.25*stdval
 
     # Find beginning of beat_loc (count as heartbeat) by looking at the difference operator (approximate gradient)
     beat_loc = ecg_signal[1,:] > thresh

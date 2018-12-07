@@ -30,6 +30,8 @@ unsigned long startTime = 0;
 unsigned long volatile elapsedTime = 0;
 unsigned long volatile currentTime = 0;
 unsigned long volatile lastTime = 0;
+int num = 0;
+int temp = 0;
 bool newRead = false;
 bool sending = false;
 
@@ -90,8 +92,31 @@ void sendData() {
   BTserial.print(' ');
   BTserial.print(gz);
   BTserial.print(' ');
-  BTserial.println(analogRead(A2));
-  //Serial.println(analogRead(A2));
+
+  if(num == 3){
+    temp = analogRead(A2);
+    num = 0;
+  } else {
+    num++; 
+  }
+  
+  BTserial.println(temp);
+  /*
+  Serial.print(elapsedTime);
+  Serial.print(' ');
+  Serial.print(gx);
+  Serial.print(' ');
+  Serial.print(gy);
+  Serial.print(' ');
+  Serial.print(gz);
+  Serial.print(' ');  
+  if(num == 3){
+    Serial.println(analogRead(A2));
+    num = 0;
+  } else {
+    Serial.println();
+    num++; 
+  }*/
 }
 
 /* 
@@ -140,9 +165,8 @@ void loop(){
     sendData();
     newRead = false;
   }
-
   if (BTserial.available() > 0) { 
-    String dataFromPython =  BTserial.readStringUntil(',');
+    String dataFromPython =  BTserial.readStringUntil('\n');
     Serial.print("Received: ");
     Serial.println(dataFromPython);
     
