@@ -24,10 +24,11 @@ NS = 20                                         # samples to grab each iteration
 pause_interval = .5
 sample_count = 0                                # current sample count
 times, raw, processed, hr, hrProcessed= np.zeros((5, N))                         # data vectors
-serial_port = '/dev/cu.usbserial'
-#serial_port = '/dev/cu.usbmodem14201'  # the serial port to use
+#serial_port = '/dev/cu.usbserial'
+serial_port = 'COM7'  # the serial port to use
 serial_baud = 9600
-max_hr=210
+max_hr=115
+min_hr=50
 arr= np.zeros((4, 4))
 arrHr= np.zeros((4, 4))
 ic= np.zeros((2, 3))
@@ -148,7 +149,9 @@ def process_without_plots():
             exit()
         prevTime = currTime
     #Send to databasepip install pyrebase
-    #write_to_pyrebase("walker", HrValid, sCount)
+    if (HrValid > min_hr and HrValid < max_hr):
+        randomFill = ""
+        #write_to_pyrebase("walker", HrValid, sCount)
 
 
 # get the sum of raw
