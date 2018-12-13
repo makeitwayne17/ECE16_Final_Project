@@ -42,6 +42,7 @@ sPrev = 0
 HrValid = 0
 step_goal = 0
 goal_reached = False
+begin = True
 
 # ==================== Grab 'count' samples from Serial ====================
 def grab_samples( n_samples ):
@@ -128,11 +129,11 @@ def process_without_plots():
         # prevTime = stepTime
 
     #check if step count goal reached
-    if(sCount > step_goal):
+    if(sCount >= step_goal):
         goal_reached = True
-        end_message = "You've reached your step goal!!!"
+        end_message = "\nYou've reached your step goal!!!"
     else:
-        end_message = "Steps remaining: " + str(step_goal-sCount)
+        end_message = "\nSteps remaining: " + str(step_goal-sCount)
 
 
     #send data to BLE
@@ -185,14 +186,14 @@ if (__name__ == "__main__") :
     icHr[0] = scipy.signal.lfilter_zi(b_lowHR, a_lowHR)    #initial filter
     icHr[1] = scipy.signal.lfilter_zi(b_highHR, a_highHR)    #initial filter
     #print ("before bluetooth")
+    
+    step_goal = int(input('Please enter your step goal:'))
     '''
-    print('Please enter your step goal:')
-    step_goal = input()
     while(type(step_goal) != int):
         print('Please enter your step goal as integer:')
         step_goal = input()
     '''
-    step_goal=15
+    #step_goal=10
 
     with serial.Serial(port=serial_port, baudrate=serial_baud, timeout=1) as ser:
         print("inside bluetooth")

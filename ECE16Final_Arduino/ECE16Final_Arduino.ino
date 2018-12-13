@@ -30,10 +30,16 @@ unsigned long startTime = 0;
 unsigned long volatile elapsedTime = 0;
 unsigned long volatile currentTime = 0;
 unsigned long volatile lastTime = 0;
+const int RED_PIN = 10;
+const int GREEN_PIN = 11;
+const int buttonPin = 4;
 int num = 0;
 int temp = 0;
 bool newRead = false;
-bool sending = false;
+bool sending = true;
+int buttonState;
+int prevState = 0;
+bool sleep = false;
 
 /* 
  *  Function to check the interrupt pin to see if there is data available in the MPU's buffer
@@ -100,8 +106,8 @@ void sendData() {
     num++; 
   }
   //BTserial.print(" GG ");
-  BTserial.println(analogRead(A2));
-  Serial.println(analogRead(A2));
+  BTserial.println(temp);
+  //Serial.println(analogRead(A2));
   /*
   Serial.print(elapsedTime);
   Serial.print(' ');
@@ -151,6 +157,19 @@ void setup(){
 
   // Start time of the Arduino (for elapsed time)
   startTime = micros();
+
+  //set up led pins
+  pinMode(RED_PIN, OUTPUT);
+  pinMode(GREEN_PIN, OUTPUT);
+
+  //turn on red as default
+  digitalWrite(RED_PIN, HIGH);
+  digitalWrite(GREEN_PIN, LOW);
+
+  //button stuff
+  pinMode(buttonPin, INPUT);  
+  buttonState = 0;
+  sending = true;
 }
 
 /* 
@@ -158,16 +177,44 @@ void setup(){
  *  NOTE: MODIFY TO SUIT YOUR ALGORITHM!
  */
 void loop(){
+  /*
+  //get button state
+  buttonState = digitalRead(buttonPin);
+
+  if(buttonState == 0 && prevState == 1){   //this means button has been pressed
+    //Serial.println("changed");
+    if(sleep){
+      sleep = false;
+      sending = true;
+    } else {
+      sleep = true;
+      sending = false;
+    }
+  }
+  */
+
+  
   // no longer using an ISR for the sake of AltSoftSerial
   pollData();
+sending = true;
 
-  sending = true;
   if (newRead && sending) {
+    Serial.println("sending");
     sendData();
     newRead = false;
   }
   if (BTserial.available() > 0) { 
-    String dataFromPython =  BTserial.readStringUntil('\n');
+    String dataFromPython =  BTserial.readStringUntil(',');
+
+    if(dataFromPython[dataFromPython.length() - 1] == '!'){
+      //turn LED green
+      digitalWrite(RED_PIN, LOW);
+      digitalWrite(GREEN_PIN, HIGH);
+    } else {
+      //turn LED red
+      digitalWrite(RED_PIN,HIGH);
+      digitalWrite(GREEN_PIN, LOW);
+    }
     /*
     Serial.print("Received: ");
     Serial.println(dataFromPython);
