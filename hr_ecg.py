@@ -39,3 +39,29 @@ def calculate_hr(ecg_signal):
     HR = np.mean(hr_at_hb)
 
     return HR, beat_loc * np.max(ecg_signal[1, :])
+
+def calculate_hr_hr(ecg_signal):
+    
+    # Variable to contain the heartbeat locations
+    hb_loc = np.zeros((np.size(ecg_signal, 0), np.size(ecg_signal, 1)))
+
+    # Calculate signal statistics and choose an adaptive threshold
+    meanval = np.mean(ecg_signal[1,:])
+    stdval = np.std(ecg_signal[1,:])
+    thresh = meanval + 2*stdval
+
+    # Find beginning of beat_loc (count as heartbeat) by looking at the difference operator (approximate gradient)
+    beat_loc = ecg_signal[1,:] > thresh
+    beat_loc_flip = -(beat_loc-1)
+    hb_loc[1, 1:] = beat_loc[1:]*beat_loc_flip[:-1]
+    hb_loc[0, :] = ecg_signal[0, :]
+
+    # Calculate the HR by looking at the time difference between successive heartbeats
+    hb_times = hb_loc[0, np.where(hb_loc[1, 1:] == 1)][0]
+    hb_time_dif = hb_times[1:] - hb_times[:-1]
+    hr_at_hb = 60 / hb_time_dif
+    
+    # Set HR as the average HR over this window of data
+    HR = np.mean(hr_at_hb)
+
+    return HR, beat_loc * np.max(ecg_signal[1, :])

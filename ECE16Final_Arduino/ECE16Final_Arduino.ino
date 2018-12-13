@@ -99,8 +99,9 @@ void sendData() {
   } else {
     num++; 
   }
-  
-  BTserial.println(temp);
+  //BTserial.print(" GG ");
+  BTserial.println(analogRead(A2));
+  Serial.println(analogRead(A2));
   /*
   Serial.print(elapsedTime);
   Serial.print(' ');
@@ -167,16 +168,17 @@ void loop(){
   }
   if (BTserial.available() > 0) { 
     String dataFromPython =  BTserial.readStringUntil('\n');
+    /*
     Serial.print("Received: ");
     Serial.println(dataFromPython);
-    
+    */
     display.clearDisplay();
-         display.display();   
-         display.setTextSize(1);
-         display.setTextColor(WHITE);
-         display.setCursor(0,0);
-         display.println(dataFromPython);
-         display.display();
+    display.display();   
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0,0);
+    display.println(dataFromPython);
+    display.display();
   }
 
 }

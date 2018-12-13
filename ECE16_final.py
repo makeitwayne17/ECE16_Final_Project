@@ -10,6 +10,8 @@ import scipy
 import math 
 import hr_ecg as hr
 import hr_ecg
+import math
+import time
 
 
 
@@ -32,6 +34,7 @@ data = ""
 prevTime = 0
 stepTime = 0
 sPrev = 0
+HrValid = 0
 
 # ==================== Grab 'count' samples from Serial ====================
 def grab_samples( n_samples ):
@@ -41,7 +44,12 @@ def grab_samples( n_samples ):
     t, rawSum, hrIn = np.zeros((3, n_samples))
     for i in range(n_samples) :
         try:
-            data = ser.readline().strip().decode('utf-8')
+            try:
+                data = ser.readline().strip().decode('utf-8')
+            except KeyboardInterrupt:
+                print("\nexiting grab samples...")
+                ser.close()
+                exit()
             
             t1, gx1, gy1, gz1, hr1 = data.split(' ')
             t[i] = float(t1)/1000
@@ -56,6 +64,7 @@ def grab_samples( n_samples ):
     sample_count += n_samples
     return t, rawSum, hrIn
 
+'''
 # ==================== Grab new samples and plot ====================
 def update_plots(i):
     global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev
@@ -147,8 +156,11 @@ def update_plots(i):
     #axes[1].set_xlim(freq[0], freq[-1])
     #axes[1].set_ylim(min(power), max(power))
     return live_plots
+'''
 
 def process_without_plots(): 
+    global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev, HrValid
+    print("hello")
 
     # shift samples left by 'NS'
     times[:N-NS] = times[NS:]
@@ -165,7 +177,11 @@ def process_without_plots():
     icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHr)
     beats = np.array([times, hrProcessed])
     Hr = 5
-    Hr, loc1 = hr_ecg.calculate_hr(beats)
+    Hr, loc1 = hr_ecg.calculate_hr_hr(beats)
+    if(math.isnan(Hr)):
+        nothing = 0
+    else:
+        HrValid = Hr
 
     #get steps
     steps = np.array([times, processed])
@@ -174,27 +190,36 @@ def process_without_plots():
 
     for i in range(N - 1):
         x = loc[i+1] - loc[i]
-        if(x > (0.75 * max(processed))):
+        if(x > (0.5 * max(processed))):
             step[i] = 1
+            print("step at: " + str(i))
         else:
             step[i] = 0
 
+    """
     for i in range(N-1):
         if (step[i] == 1):
             stepTime = times[i]     #get the time of current step
-
-            sCount = sCount + 1
-            print("Step: " + str(sCount))
-            #print(times[i])
+            print("stepped")
             if (stepTime - prevTime) > step_pause_interval:
                 sCount = sCount + 1
                 print("Step: " + str(sCount))
                 prevTime = stepTime
+    """
+    if 1 in step[N-(NS+1):]:
+        # stepTime = time.time()        
+        #if (stepTime - prevTime) > .5:
+        sCount = sCount + 1
+        # print("Step: " + str(sCount))
+        # ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
+        # prevTime = stepTime
 
     currTime = time.time()
     if((currTime - prevTime) > step_pause_interval):
-        ser.write(("HR: " + format(Hr, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
+        print(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + ","))
+        #ser.write(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
         prevTime = currTime
+    #write_to_pyrebase("walker", HrValid, sCount)
 
 
 # get the sum of raw
@@ -234,25 +259,22 @@ if (__name__ == "__main__") :
     print ("before bluetooth")
 
     with serial.Serial(port=serial_port, baudrate=serial_baud, timeout=1) as ser:
-        
         print("inside bluetooth")
-        ser.write("AT+DISC?".encode())
-        sleep(0.5)
-        ser.write("AT+ROLE1".encode())
-        sleep(0.5)
-        ser.write("AT+IMME1".encode())
-        sleep(0.5)
-        ser.write("AT+CON3403DE1C5F63".encode())
-        sleep(0.5)
         #try:
         sleep(3)
-        ser.write(b"1")
+        try:
+            ser.write(b"1")
+        except KeyboardInterrupt:
+            print("\nexiting serial write...")
+            ser.close()
+            exit()
         #ser.write(b"\n")
        
         # # initialize the figure 
         # fig, axes = plt.subplots(1,2)
 
         #times, raw = grab_samples(N)
+        print("grab first samples")
         times[N-NS:], raw[N-NS:], hr[N-NS:]= grab_samples(NS)
         sleep(0.5);
 
