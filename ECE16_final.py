@@ -12,18 +12,22 @@ import hr_ecg as hr
 import hr_ecg
 import math
 import time
+#import write_to_pyrebase
+#from pyrebase import pyrebase
+#import write_to_pyrebase
 
 
 
 # ==================== Globals ====================
 N = 400                                         # samples to plot
 NS = 20                                         # samples to grab each iteration
-step_pause_interval = .25
+pause_interval = .5
 sample_count = 0                                # current sample count
 times, raw, processed, hr, hrProcessed= np.zeros((5, N))                         # data vectors
 serial_port = '/dev/cu.usbserial'
 #serial_port = '/dev/cu.usbmodem14201'  # the serial port to use
-serial_baud = 9600    
+serial_baud = 9600
+max_hr=210
 arr= np.zeros((4, 4))
 arrHr= np.zeros((4, 4))
 ic= np.zeros((2, 3))
@@ -31,10 +35,13 @@ icHr= np.zeros((2, 3))
 loc = np.zeros(400)
 sCount = 0
 data = ""
+end_message = ""
 prevTime = 0
 stepTime = 0
 sPrev = 0
 HrValid = 0
+step_goal = 0
+goal_reached = False
 
 # ==================== Grab 'count' samples from Serial ====================
 def grab_samples( n_samples ):
@@ -64,103 +71,8 @@ def grab_samples( n_samples ):
     sample_count += n_samples
     return t, rawSum, hrIn
 
-'''
-# ==================== Grab new samples and plot ====================
-def update_plots(i):
-    global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev
-
-    # shift samples left by 'NS'
-    times[:N-NS] = times[NS:]
-    raw[:N-NS] = raw[NS:]
-    processed[:N-NS] = processed[NS:]
-    hr[:N-NS] = hr[NS:]
-
-    # grab new samples
-    #times[N-NS:], values[N-NS:], values2[N-NS:]= grab_samples(NS)
-    times[N-NS:], raw[N-NS:], hr[N-NS:]= grab_samples(NS)
-    ic, processed[N-NS:]  = flt.process_ir(raw[N-NS:],arr,ic)
-
-    #get Heart Rate
-    icHr, hrProcessed[N-NS:] = flt.process_ir(hr[N-NS:], arrHr, icHr)
-    beats = np.array([times, hrProcessed])
-    Hr = 5
-    #Hr, loc1 = hr_ecg.calculate_hr(beats)
-
-
-    #stuff for welch filter !!IGNORE!!
-    """
-    freq, power = scipy.signal.welch(processed, 25)
-
-    maxPower = 0
-
-    #loop through freq and find max power
-    for i in range((N-1)*.25):  #only checks the lower 25 % if frequnces
-        if(freq[i] > 1):    #gets rid of resting freqency
-            if(maxPower < power[i]):
-                maxPower = power[i]
-    """
-
-
-    #get steps
-    steps = np.array([times, processed])
-    HR_useless, loc = hr_ecg.calculate_hr(steps)
-    step = np.zeros(400)
-
-    for i in range(N - 1):
-        x = loc[i+1] - loc[i]
-        if(x > (0.75 * max(processed))):
-            step[i] = 1
-        else:
-            step[i] = 0
-
-    for i in range(N-1):
-        if (step[i] == 1):
-            stepTime = times[i]     #get the time of current step
-
-            sCount = sCount + 1
-            print("Step: " + str(sCount))
-            #print(times[i])
-            if (stepTime - prevTime) > step_pause_interval:
-                sCount = sCount + 1
-                print("Step: " + str(sCount))
-                prevTime = stepTime
-
-    currTime = time.time()
-    if((currTime - prevTime) > step_pause_interval):
-        ser.write(("HR: " + format(Hr, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
-        prevTime = currTime
-
-
-
-    #stuff for welch filter !!IGNORE!!
-    """
-    if 1 in step[N-(NS+1):]:
-        stepTime = time.time()        
-        if (stepTime - prevTime) > .5:
-            sCount = sCount + 1
-            print("Step: " + str(sCount))
-            ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
-            prevTime = stepTime
-    plot
-    axes[0].set_xlim(times[0],times[N-1])
-    axes[1].set_xlim(times[0],times[N-1])
-    """
-    
-    [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-    live_plots[0].set_data(times, hr)
-    live_plots[1].set_data(times, processed)
-    axes[1].set_ylim(-4000,4000)
-    axes[0].set_ylim(-500,5000)
-
-    #live_plots[1].set_data(freq, power)
-    #axes[1].set_xlim(freq[0], freq[-1])
-    #axes[1].set_ylim(min(power), max(power))
-    return live_plots
-'''
-
 def process_without_plots(): 
-    global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev, HrValid
-    print("hello")
+    global times, raw, processed, hrProcessed, hr, ic, icHr, sCount, prevTime, stepTime, sPrev, HrValid, goal_reached, end_message
 
     # shift samples left by 'NS'
     times[:N-NS] = times[NS:]
@@ -181,7 +93,9 @@ def process_without_plots():
     if(math.isnan(Hr)):
         nothing = 0
     else:
-        HrValid = Hr
+        #heart rate peak limit
+        if(Hr < max_hr):
+            HrValid = Hr
 
     #get steps
     steps = np.array([times, processed])
@@ -192,7 +106,6 @@ def process_without_plots():
         x = loc[i+1] - loc[i]
         if(x > (0.5 * max(processed))):
             step[i] = 1
-            print("step at: " + str(i))
         else:
             step[i] = 0
 
@@ -214,11 +127,26 @@ def process_without_plots():
         # ser.write(("Step: " + str(sCount) + ",").encode('utf-8'))
         # prevTime = stepTime
 
+    #check if step count goal reached
+    if(sCount > step_goal):
+        goal_reached = True
+        end_message = "You've reached your step goal!!!"
+    else:
+        end_message = "Steps remaining: " + str(step_goal-sCount)
+
+
+    #send data to BLE
     currTime = time.time()
-    if((currTime - prevTime) > step_pause_interval):
-        print(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + ","))
-        #ser.write(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + ",").encode('utf-8'))
+    if((currTime - prevTime) > pause_interval):
+        print(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + end_message + ","))
+        try:
+            ser.write(("HR: " + format(HrValid, '.2f') + " Steps: " + str(sCount) + end_message + ",").encode('utf-8'))
+        except KeyboardInterrupt:
+            print("\nexiting process plots...")
+            ser.close()
+            exit()
         prevTime = currTime
+    #Send to databasepip install pyrebase
     #write_to_pyrebase("walker", HrValid, sCount)
 
 
@@ -256,7 +184,15 @@ if (__name__ == "__main__") :
 
     icHr[0] = scipy.signal.lfilter_zi(b_lowHR, a_lowHR)    #initial filter
     icHr[1] = scipy.signal.lfilter_zi(b_highHR, a_highHR)    #initial filter
-    print ("before bluetooth")
+    #print ("before bluetooth")
+    '''
+    print('Please enter your step goal:')
+    step_goal = input()
+    while(type(step_goal) != int):
+        print('Please enter your step goal as integer:')
+        step_goal = input()
+    '''
+    step_goal=15
 
     with serial.Serial(port=serial_port, baudrate=serial_baud, timeout=1) as ser:
         print("inside bluetooth")
@@ -284,72 +220,4 @@ if (__name__ == "__main__") :
 
         while(True):
             process_without_plots()
-
-        # #live_plot = axes.plot(times, values, lw=2)[0]
-        # live_plots = []
-        # live_plots.append(axes[0].plot(times, hrProcessed, lw=2)[0])
-        # live_plots.append(axes[1].plot(times, processed, lw=2)[0])
-        
-        # # initialize the y-axis limits and labels
-        # #axes.set_ylim(0,1023)
-        # [ax.set_xlim(times[0],times[N-1]) for ax in axes]
-        # #axes[0].set_ylim(0,10000)
-        # axes[0].set_ylim(min(hrProcessed)-(min(hrProcessed)*.25), max(hrProcessed)*1.5)
-        # axes[1].set_ylim(min(processed)-(min(processed)*.25), max(processed)*1.5)
-
-        # axes[0].set_xlabel('Time (s)')
-        # axes[0].set_ylabel('Value')
-        # axes[1].set_xlabel('Time (s)')
-        # axes[1].set_ylabel('Value')
-
-        # axes[0].set_title('Heart Rate')
-        # axes[1].set_title('Processed')
-        
-
-        # # set and start the animation and update at 1ms interval (if possible)
-        # anim = animation.FuncAnimation(fig, update_plots, interval=1)
-        # plt.show()
-
-"""
-        finally:
-            ser.write(b"0")
-            ser.close()
-            sys.exit(0)
-    ser.close()
-    sys.exit(0)
-ser.close()
-sys.exit(0)
-
-    while(True):
-         
-        #check if connected
-        ser.write(("AT+DISC?").encode('utf-8'))
-        sleep(1)
-        check = read_BLE(ser)
-        sleep(1)
-        print(check + "checking\n");
-        if("3403DE33F837" in check):
-            print(check + "inside\n")
-            #automate connection
-            ser.write( ("AT+ROLE1").encode('utf-8'));
-            sleep(0.5) # wait for a response
-            ser.write( ("AT+IMME1").encode('utf-8'));
-            sleep(0.5) # wait for a response
-            ser.write(("AT+CON3403DE33F837").encode('utf-8'));
-            sleep(0.5)
-
-        command = input("Either (1) hit ENTER to read BLE, (2) send an AT command, or (3) press q to exit: ")
-        sleep(0.5) # wait for a response
-        if(command == ""):
-            print( "> " + read_BLE(ser) )
-        elif (command == 'q' or command == 'Q'):
-            print("Goodbye")
-            ser.close()
-            sys.exit(0)
-        else:
-            ser.write( command.encode('utf-8') )
-            sleep(0.5) # wait for a response
-            print( "> " + read_BLE(ser) )
-
-"""
         
