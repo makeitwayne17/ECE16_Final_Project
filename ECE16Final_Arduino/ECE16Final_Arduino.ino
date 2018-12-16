@@ -177,7 +177,7 @@ void setup(){
  *  NOTE: MODIFY TO SUIT YOUR ALGORITHM!
  */
 void loop(){
-  /*
+  
   //get button state
   buttonState = digitalRead(buttonPin);
 
@@ -191,15 +191,15 @@ void loop(){
       sending = false;
     }
   }
-  */
+  
 
   
   // no longer using an ISR for the sake of AltSoftSerial
   pollData();
-sending = true;
+  //sending = true;
 
   if (newRead && sending) {
-    Serial.println("sending");
+    //Serial.println("sending");
     sendData();
     newRead = false;
   }
